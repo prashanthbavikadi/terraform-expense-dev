@@ -3,7 +3,7 @@ variable "project_name" {
   
 }
 
-variable "Environment" {
+variable "environment" {
     default = "dev"
   
 }

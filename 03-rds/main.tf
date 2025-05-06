@@ -1,7 +1,7 @@
 module "db" {
   source = "terraform-aws-modules/rds/aws"
 
-  identifier = "demodb"
+  identifier = "${var.project_name}-${var.environment}" #expense-dev
 
   engine            = "mysql"
   engine_version    = "8.0"
@@ -11,31 +11,28 @@ module "db" {
   db_name  = "transactions"
   username = "root"
   port     = "3306"
-
-  iam_database_authentication_enabled = true
-
+  
   vpc_security_group_ids = [data.aws_ssm_parameter.db_sg_id.value]
-
-  maintenance_window = "Mon:00:00-Mon:03:00"
-  backup_window      = "03:00-06:00"
-
-  tags = {
-    Owner       = "user"
-    Environment = "dev"
-  }
-
+  
   # DB subnet group
-  create_db_subnet_group = false  
-  subnet_ids             = ["subnet-12345678", "subnet-87654321"]
+  db_subnet_group_name = data.aws_ssm_parameter.db_subnet_group_name.value
 
   # DB parameter group
-  family = "mysql5.7"
+  family = "mysql8.0"
 
   # DB option group
-  major_engine_version = "5.7"
+  major_engine_version = "8.0"
 
-  # Database Deletion Protection
-  deletion_protection = true
+    tags = merge(
+    var.common_tags,
+    {
+        Name = "${var.project_name}-${var.environment}"
+    }
+  )
+
+  manage_master_user_password = false
+  password = "ExpenseApp1"
+  skip_final_snapshot = true
 
   parameters = [
     {
@@ -43,7 +40,7 @@ module "db" {
       value = "utf8mb4"
     },
     {
-      name  = "character_set_server"
+      name  = "character_set_server" 
       value = "utf8mb4"
     }
   ]
@@ -63,5 +60,26 @@ module "db" {
         },
       ]
     },
+  ]
+ 
+}
+
+# # create R53 record for RDS endpoint
+
+module "records" {
+  source  = "terraform-aws-modules/route53/aws//modules/records"
+  version = "~> 2.0"
+
+  zone_name = var.zone_name
+  
+  records = [
+    {
+      name    = "db"
+      type    = "CNAME"
+      ttl = 1
+      records = [
+        module.db.db_instance_address
+      ]
+    }
   ]
 }
